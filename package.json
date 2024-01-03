@@ -1,16 +1,15 @@
 {
   "name": "pdf-xref-parser",
-  "version": "1.0.0",
+  "version": "1.0.10",
   "repository": "git@monsterlessonsacademy.github.com:monsterlessonsacademy/monsterlessonsacademy.git",
   "description": "Basic PDF Xref parser",
   "author": "Dragan Petrovic <pdragan1996@gmail.com>",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "files": [
-    "/dist"
-  ],
+  "main": "index.js",
+  "types": "index.d.ts",
   "scripts": {
-    "build": "rm -rf dist/lib && tsc && tsc --build tsconfig.es5.json"
+    "build": "rm -rf dist && tsc --build && npm run copy",
+    "copy": "cp package.json dist/lib && cp .npmignore dist/lib && cp README.md dist/lib",
+    "pack:lib": "npm run build && cd dist/lib && npm pack"
   },
   "keywords": [],
   "license": "MIT",

@@ -1,1 +1,3 @@
-export { XRefReader } from './XRefReader';
+export { PDFParser } from './PDFParser';
+
+export * from "./xref.model"

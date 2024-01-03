@@ -1,4 +1,4 @@
-export interface XRefEntry {
+  export interface XRefEntry {
   type: XREF_ENTRY_TYPES;
   num: number;
   generator: number;

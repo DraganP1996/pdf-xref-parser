@@ -23,10 +23,10 @@ export class TableXRefSubSection {
       const generator = this.xRef.token;
       const type = this.xRef.token;
 
-      console.log("byteOffset     :", byteOffset);
-      console.log("generator      :", generator);
-      console.log("type           :", type);
-      console.log("index          :", i);
+      // console.log("byteOffset     :", byteOffset);
+      // console.log("generator      :", generator);
+      // console.log("type           :", type);
+      // console.log("index          :", i);
 
       if (!byteOffset || !generator || !type) {
         return;

@@ -2,21 +2,33 @@ import { ReverseTokenizer } from "./ReverseTokenizer";
 import { Xref } from "./XRef";
 
 import { isEOFString } from "./util";
+import { XRefEntry } from "./xref.model";
 
 export class PDFParser {
-  data: Int8Array;
-  xRef?: Xref;
+  private _buffer: Int8Array;
+  private _xRef?: Xref;
 
   private _reverseTokenizer: ReverseTokenizer;
 
-  constructor(data: Int8Array) {
-    this.data = data;
-    this._reverseTokenizer = new ReverseTokenizer(data);
+  constructor(buffer: ArrayBuffer) {
+    const pdfBinary = new Int8Array(buffer);
 
-    this.read();
+    this._buffer = pdfBinary;
+    this._reverseTokenizer = new ReverseTokenizer(pdfBinary);
+
+    this._read();
   }
 
-  read() {
+  getXRefEntries(): XRefEntry[] {
+    if (!this._xRef) {
+      return [];
+    }
+
+    return this._xRef.getXRefEntries();
+  }
+
+  private _read() {
+    debugger;
     while (!this._reverseTokenizer.complete) {
       const token = this._reverseTokenizer.token;
 
@@ -36,12 +48,12 @@ export class PDFParser {
         return;
       }
 
-      const xRefBinaryView = this.data.slice(
+      const xRefBinaryView = this._buffer.slice(
         +xRefOffset,
         this._reverseTokenizer.lastReadIndex + 1
       );
 
-      this.xRef = new Xref(xRefBinaryView);
+      this._xRef = new Xref(xRefBinaryView);
     }
   }
 }

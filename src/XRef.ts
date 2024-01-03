@@ -1,6 +1,7 @@
 import { Dictionary } from "./Dictionary";
 import { Tokenizer } from "./Tokenizer";
 import { TableXRefSubSection } from "./XRefSubsection";
+import { XRefEntry } from "./xref.model";
 
 export class Xref {
   private _isTableXref!: boolean;
@@ -12,14 +13,24 @@ export class Xref {
   constructor(xRefBinary: Int8Array) {
     this._tokenizer = new Tokenizer(xRefBinary);
 
-    this.read();
+    this._read();
   }
 
   get token(): string | undefined {
     return this._tokenizer.token;
   }
 
-  read() {
+  getXRefEntries(): XRefEntry[] {
+    const entries = [];
+
+    this._tableXRefSubSections.forEach((subsection: TableXRefSubSection) =>
+      subsection.entries.forEach((entry: XRefEntry) => entries.push(entry))
+    );
+
+    return entries;
+  }
+
+  private _read() {
     while (!this._tokenizer.complete) {
       const token = this._tokenizer.token;
 

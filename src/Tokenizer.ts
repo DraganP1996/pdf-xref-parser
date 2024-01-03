@@ -13,7 +13,7 @@ export class Tokenizer {
    * Stores the information about the last read index from the bytes
    * Int8Array
    */
-  lastReadIndex = 0;
+  lastReadIndex = -1;
 
   protected _bytes: Int8Array;
 
@@ -24,22 +24,28 @@ export class Tokenizer {
   /**
    * Get the next byte from the bytes Int8Array
    */
-  protected get byte(): number {
-    const byte = this._bytes[this.lastReadIndex];
-
-    ++this.lastReadIndex;
-
-    return byte;
+  protected *__peekByte(): Generator<number> {
+    while (this.lastReadIndex <= this._bytes.length - 1) {
+      yield this._bytes[++this.lastReadIndex];
+    }
   }
 
   /**
    * Composes PDF tokens from the bytes in the Int8Array
    */
   get token(): string | undefined {
+    const byteGenerator = this.__peekByte();
     const token: number[] = [];
 
     while (true) {
-      const byte = this.byte;
+      const { value: byte, done } = byteGenerator.next();
+
+      console.log("TOKENIZER PEEKED BYTE: ", byte, String.fromCharCode(byte));
+
+      if (done) {
+        break;
+      }
+
       const isWhiteSpace = isEmptySpace(byte);
       const isEOL = isEOLChar(byte);
 

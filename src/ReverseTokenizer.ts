@@ -9,28 +9,38 @@ export class ReverseTokenizer extends Tokenizer {
   constructor(dataView: Int8Array) {
     super(dataView);
 
-    this.lastReadIndex = dataView.byteLength - 1;
+    this.lastReadIndex = dataView.byteLength;
   }
 
   /**
    * Get the next byte from the bytes Int8Array
    */
-  protected override get byte(): number {
-    const byte = this._bytes[this.lastReadIndex];
-
-    --this.lastReadIndex;
-
-    return byte;
+  protected override *__peekByte(): Generator<number> {
+    while (!!this.lastReadIndex) {
+      yield this._bytes[--this.lastReadIndex];
+    }
   }
 
   /**
    * Composes PDF tokens from the bytes in the Int8Array
    */
   get token(): string | undefined {
+    const byteGenerator = this.__peekByte();
     const token: number[] = [];
 
     while (true) {
-      const byte = this.byte;
+      const { value: byte, done } = byteGenerator.next();
+
+      console.log(
+        "REVERSE TOKENIZER PEEKED BYTE: ",
+        byte,
+        String.fromCharCode(byte)
+      );
+
+      if (done) {
+        break;
+      }
+
       const isWhiteSpace = isEmptySpace(byte);
       const isEOL = isEOLChar(byte);
 
