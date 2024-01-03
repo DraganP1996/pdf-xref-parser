@@ -8,7 +8,7 @@ cross reference sections.
 
 ## Installation
 
-npm i pdf-xref-parser
+``npm i pdf-xref-parser``
 
 ## Usage
 
