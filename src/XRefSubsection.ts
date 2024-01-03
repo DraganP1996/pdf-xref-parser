@@ -1,3 +1,4 @@
+import { Tokenizer } from "./Tokenizer";
 import { Xref } from "./XRef";
 import { XREF_ENTRY_TYPES, XRefEntry } from "./xref.model";
 
@@ -6,29 +7,37 @@ export class TableXRefSubSection {
   numberOfEntries: number;
   prevSubsection?: TableXRefSubSection;
 
-  xRef: Xref;
   entries: XRefEntry[] = [];
+  tokenizer: Tokenizer;
 
-  constructor(startingObjNumber: number, numberOfEntries: number, xRef: Xref) {
+  constructor(
+    startingObjNumber: number,
+    numberOfEntries: number,
+    tokenizer: Tokenizer
+  ) {
     this.startingObjNumber = startingObjNumber;
     this.numberOfEntries = numberOfEntries;
-    this.xRef = xRef;
+    this.tokenizer = tokenizer;
 
     this.findEntries();
   }
 
   findEntries(): void {
-    for (let i = 0; i <= this.numberOfEntries - 1; i++) {
-      const byteOffset = this.xRef.token;
-      const generator = this.xRef.token;
-      const type = this.xRef.token;
+    const tokenGen = this.tokenizer.peekValidToken();
 
-      // console.log("byteOffset     :", byteOffset);
-      // console.log("generator      :", generator);
-      // console.log("type           :", type);
-      // console.log("index          :", i);
+    while (this.entries.length < this.numberOfEntries) {
+      const { value: byteOffset, done: byteOffsetDone } = tokenGen.next();
+      const { value: generator, done: generatorDone } = tokenGen.next();
+      const { value: type, done: typeDone } = tokenGen.next();
 
-      if (!byteOffset || !generator || !type) {
+      if (
+        !byteOffset ||
+        !generator ||
+        !type ||
+        byteOffsetDone ||
+        generatorDone ||
+        typeDone
+      ) {
         return;
       }
 
@@ -36,7 +45,7 @@ export class TableXRefSubSection {
         byteOffset: +byteOffset,
         generator: +generator,
         type: type === "f" ? XREF_ENTRY_TYPES.FREE : XREF_ENTRY_TYPES.IN_USE,
-        num: this.startingObjNumber + i,
+        num: this.startingObjNumber + this.entries.length,
       });
     }
   }

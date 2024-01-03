@@ -17,25 +17,17 @@ export class ReverseTokenizer extends Tokenizer {
    */
   protected override *__peekByte(): Generator<number> {
     while (!!this.lastReadIndex) {
-      yield this._bytes[--this.lastReadIndex];
+      yield this._bytesView[--this.lastReadIndex];
     }
   }
 
-  /**
-   * Composes PDF tokens from the bytes in the Int8Array
-   */
-  get token(): string | undefined {
+  public override *peekValidToken(): Generator<string> {
     const byteGenerator = this.__peekByte();
-    const token: number[] = [];
 
-    while (true) {
+    let token: number[] = [];
+
+    while (!!this.lastReadIndex) {
       const { value: byte, done } = byteGenerator.next();
-
-      console.log(
-        "REVERSE TOKENIZER PEEKED BYTE: ",
-        byte,
-        String.fromCharCode(byte)
-      );
 
       if (done) {
         break;
@@ -43,22 +35,30 @@ export class ReverseTokenizer extends Tokenizer {
 
       const isWhiteSpace = isEmptySpace(byte);
       const isEOL = isEOLChar(byte);
+      const isDelimiter = isWhiteSpace || isEOL;
+      const isAValidToken = isDelimiter && token.length;
+      const isJustEmptySpace = isDelimiter && !token.length;
 
-      if (isWhiteSpace || isEOL || this.lastReadIndex <= 0) {
-        break;
+      // If the current token is a valid token, we can use it
+      if (isAValidToken) {
+        const validToken = [...token];
+
+        token = [];
+        yield String.fromCharCode(...validToken);
       }
 
-      token.unshift(byte);
+      // If the current token is just an empty space, we can reset the
+      // char arrays which represent a token and continue
+      if (isJustEmptySpace) {
+        token = [];
+        continue;
+      }
+
+      // If the current byte is not a delimiter, we can add it in the
+      // array of bytes that represent the current token
+      if (!isDelimiter) {
+        token.unshift(byte);
+      }
     }
-
-    const allBytesAreRead = this.lastReadIndex <= 0;
-
-    this.complete = allBytesAreRead;
-
-    if (!token.length && allBytesAreRead) {
-      return undefined;
-    }
-
-    return token.length ? String.fromCharCode(...token) : this.token;
   }
 }

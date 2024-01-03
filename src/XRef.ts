@@ -4,20 +4,22 @@ import { TableXRefSubSection } from "./XRefSubsection";
 import { XRefEntry } from "./xref.model";
 
 export class Xref {
+  private _bytesView: Int8Array;
   private _isTableXref!: boolean;
   private _tableXRefSubSections: TableXRefSubSection[] = [];
-
-  private _tokenizer: Tokenizer;
   private _trailerDictionary?: Dictionary;
 
+  tokenizer: Tokenizer;
+
   constructor(xRefBinary: Int8Array) {
-    this._tokenizer = new Tokenizer(xRefBinary);
+    this._bytesView = xRefBinary;
+    this.tokenizer = new Tokenizer(xRefBinary);
 
     this._read();
   }
 
   get token(): string | undefined {
-    return this._tokenizer.token;
+    return this.tokenizer.peekValidToken().next().value;
   }
 
   getXRefEntries(): XRefEntry[] {
@@ -31,15 +33,21 @@ export class Xref {
   }
 
   private _read() {
-    while (!this._tokenizer.complete) {
-      const token = this._tokenizer.token;
+    const generator = this.tokenizer.peekValidToken();
 
-      if (token === undefined) {
+    while (true) {
+      const { value, done } = generator.next();
+
+      if (done) {
+        break;
+      }
+
+      if (value === undefined) {
         continue;
       }
 
       // Only the table-based Xrefs starts with the xref keyword
-      if (token === "xref") {
+      if (value === "xref") {
         this._isTableXref = true;
         this._handleXRefTableInterpretation();
         break;
@@ -48,33 +56,49 @@ export class Xref {
   }
 
   private _handleXRefTableInterpretation(): void {
-    while (!this._tokenizer.complete) {
-      const first = this._tokenizer.token;
+    const generator = this.tokenizer.peekValidToken();
 
-      if (!first) {
+    while (true) {
+      const { value: firstValue, done: firstDone } = generator.next();
+
+      if (firstDone) {
+        break;
+      }
+
+      if (!firstValue) {
         continue;
       }
 
-      if (first === "trailer") {
-        this._trailerDictionary = Dictionary.from(
-          this._tokenizer.getUnreadData(true)
-        );
+      if (firstValue === "trailer") {
+        this._trailerDictionary = Dictionary.from(this.tokenizer);
+
+        const hasPreviousXRefTable = !!this._trailerDictionary["Prev"];
+
+        if (hasPreviousXRefTable) {
+          this.tokenizer = new Tokenizer(this._bytesView);
+          this.tokenizer.lastReadIndex = +this._trailerDictionary["Prev"] - 1;
+          this._read();
+        }
 
         break;
       }
 
-      if (isNaN(+first)) {
+      if (isNaN(+firstValue)) {
         continue;
       }
 
-      const second = this._tokenizer.token;
+      const { value: secondValue, done: secondDone } = generator.next();
 
-      if (!second || isNaN(+second)) {
+      if (secondDone) {
+        break;
+      }
+
+      if (!secondValue || isNaN(+secondValue)) {
         continue;
       }
 
-      const isTheStartObjNum = first.length === 10;
-      const isTheGeneratorNum = second.length === 5;
+      const isTheStartObjNum = firstValue.length === 10;
+      const isTheGeneratorNum = secondValue.length === 5;
       const isASubsectionHeader = !isTheStartObjNum || !isTheGeneratorNum;
 
       if (!isASubsectionHeader) {
@@ -82,7 +106,7 @@ export class Xref {
       }
 
       this._tableXRefSubSections.push(
-        new TableXRefSubSection(+first, +second, this)
+        new TableXRefSubSection(+firstValue, +secondValue, this.tokenizer)
       );
     }
   }

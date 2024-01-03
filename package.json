@@ -1,6 +1,6 @@
 {
   "name": "pdf-xref-parser",
-  "version": "1.0.10",
+  "version": "1.0.1",
   "repository": "git@monsterlessonsacademy.github.com:monsterlessonsacademy/monsterlessonsacademy.git",
   "description": "Basic PDF Xref parser",
   "author": "Dragan Petrovic <pdragan1996@gmail.com>",

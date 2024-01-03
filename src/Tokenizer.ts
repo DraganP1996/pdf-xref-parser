@@ -5,42 +5,33 @@ import { isEOLChar, isEmptySpace } from "./util";
  */
 export class Tokenizer {
   /**
-   * true - all the bytes are read, otherwise false
-   */
-  complete = false;
-
-  /**
    * Stores the information about the last read index from the bytes
    * Int8Array
    */
   lastReadIndex = -1;
 
-  protected _bytes: Int8Array;
+  protected _bytesView: Int8Array;
 
   constructor(dataView: Int8Array) {
-    this._bytes = dataView;
+    this._bytesView = dataView;
   }
 
   /**
    * Get the next byte from the bytes Int8Array
    */
   protected *__peekByte(): Generator<number> {
-    while (this.lastReadIndex <= this._bytes.length - 1) {
-      yield this._bytes[++this.lastReadIndex];
+    while (this.lastReadIndex <= this._bytesView.length - 1) {
+      yield this._bytesView[++this.lastReadIndex];
     }
   }
 
-  /**
-   * Composes PDF tokens from the bytes in the Int8Array
-   */
-  get token(): string | undefined {
+  public *peekValidToken(): Generator<string> {
     const byteGenerator = this.__peekByte();
-    const token: number[] = [];
 
-    while (true) {
+    let token: number[] = [];
+
+    while (this.lastReadIndex <= this._bytesView.byteLength - 1) {
       const { value: byte, done } = byteGenerator.next();
-
-      console.log("TOKENIZER PEEKED BYTE: ", byte, String.fromCharCode(byte));
 
       if (done) {
         break;
@@ -48,42 +39,30 @@ export class Tokenizer {
 
       const isWhiteSpace = isEmptySpace(byte);
       const isEOL = isEOLChar(byte);
+      const isDelimiter = isWhiteSpace || isEOL;
+      const isAValidToken = isDelimiter && token.length;
+      const isJustEmptySpace = isDelimiter && !token.length;
 
-      if (
-        isWhiteSpace ||
-        isEOL ||
-        this.lastReadIndex > this._bytes.byteLength - 1
-      ) {
-        break;
+      // If the current token is a valid token, we can use it
+      if (isAValidToken) {
+        const validToken = [...token];
+
+        token = [];
+        yield String.fromCharCode(...validToken);
       }
 
-      token.push(byte);
+      // If the current token is just an empty space, we can reset the
+      // char arrays which represent a token and continue
+      if (isJustEmptySpace) {
+        token = [];
+        continue;
+      }
+
+      // If the current byte is not a delimiter, we can add it in the
+      // array of bytes that represent the current token
+      if (!isDelimiter) {
+        token.push(byte);
+      }
     }
-
-    const allBytesAreRead = this.lastReadIndex >= this._bytes.byteLength - 1;
-
-    this.complete = allBytesAreRead;
-
-    if (!token.length && allBytesAreRead) {
-      return undefined;
-    }
-
-    return token.length ? String.fromCharCode(...token) : this.token;
-  }
-
-  /**
-   * Returns if the tokenizer is completed or not
-   * It is possible to complete programmatically by using the following param
-   * @param setIsCompleted
-   * @returns
-   */
-  public getUnreadData(setIsCompleted?: boolean): Int8Array {
-    setIsCompleted && this.completeTokenizer();
-
-    return this._bytes.slice(this.lastReadIndex, this._bytes.byteLength);
-  }
-
-  public completeTokenizer() {
-    this.complete = true;
   }
 }

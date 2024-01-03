@@ -15,113 +15,142 @@ export class Dictionary {
    * @param bytes
    * @returns
    */
-  static from(bytes: Int8Array): Dictionary {
-    const tokenizer = new Tokenizer(bytes);
+  static from(tokenizer: Tokenizer): Dictionary {
     const genericObject: GenericDictionaryParams = {};
+    const keyGen = findKey(tokenizer);
+    const valueGen = findValue(tokenizer);
 
-    while (!tokenizer.complete) {
-      const key = findDictionaryKey(tokenizer);
-      const value = findDictionaryValue(tokenizer);
+    while (true) {
+      const { value: key, done: keyDone } = keyGen.next();
 
-      genericObject[key.split("/")[1].toLowerCase()] = value;
+      if (keyDone || key === ">>") {
+        break;
+      }
+
+      if (!key || key === "<<") {
+        continue;
+      }
+
+      const { value, done } = valueGen.next();
+
+      if (done || value === undefined || value === ">>") {
+        break;
+      }
+
+      genericObject[key.split('/')[1]] = value;
     }
 
     return new Dictionary(genericObject);
   }
 }
 
-export const findDictionaryKey = (tokenizer: Tokenizer) => {
-  let name = "";
+function* findKey(tokenizer: Tokenizer) {
+  const tokenGen = tokenizer.peekValidToken();
 
-  while (!name) {
-    const token = tokenizer.token;
+  while (true) {
+    const { value, done } = tokenGen.next();
 
-    if (token?.charAt(0) === "/") {
-      name = token;
+    if (done) {
       break;
     }
 
-    if (token === ">>") {
-      tokenizer.complete = true;
-      break;
+    const isNamePDFObj = value?.charAt(0) === "/";
+    const isEndOfDictionary = value === ">>";
+    const isStartOfDictionary = value === "<<";
+
+    if (isNamePDFObj) {
+      yield value;
     }
-  }
 
-  return name;
-};
-
-export const findDictionaryValue = (tokenizer: Tokenizer): any => {
-  let isANameToken = false;
-  let isAnArrayToken = false;
-  let isANumberToken = false;
-  let isRefToken = false;
-
-  let value: any[] = [];
-
-  while (!tokenizer.complete) {
-    const token = tokenizer.token;
-
-    if (token === undefined) {
+    if (isStartOfDictionary) {
       continue;
     }
 
-    if (token === ">>") {
-      tokenizer.complete = true;
+    if (!isNamePDFObj || isEndOfDictionary) {
+      break;
+    }
+  }
+}
+
+function* findValue(tokenizer: Tokenizer): Generator<any> {
+  const generator = tokenizer.peekValidToken();
+
+  while (true) {
+    const { value, done } = generator.next();
+
+    if (done || undefined) {
       break;
     }
 
-    isANameToken = token.charAt(0) === "/";
-    isAnArrayToken =
-      (!value.length && token.charAt(0) === "[") ||
-      (!!value.length && token.charAt(token.length - 1) === "]");
-    isANumberToken = !value.length && !isNaN(+token);
-    isRefToken =
-      (value.length === 1 && !isNaN(+value[0])) ||
-      (value.length === 2 && !isNaN(+value[0]) && !isNaN(+value[1])) ||
-      (token === "R" &&
-        value.length === 2 &&
-        !isNaN(+value[0]) &&
-        !isNaN(+value[1]));
+    const isEndOfDictionary = value === ">>";
+    const isStartOfDictionary = value === "<<";
+    const isNamePDFObj = value.charAt(0) === "/";
+    const isANumber = !isNaN(+value);
+    const startsPDFArrayObj = value.charAt(0) === "[";
 
-    // Entry value of dictionary od Name type
-    if (isANameToken) {
-      value.unshift(token);
-      break;
+    if (isStartOfDictionary) {
+      continue;
     }
 
-    // Entry value of dictionary od Number type
-    if (isANumberToken && !isANameToken) {
-      value.unshift(token);
+    if (isEndOfDictionary) {
+      return;
     }
 
-    // Entry value of number type - difference from Ref token since there is just one number followed by another name
-    // TODO: Probably a bug here, what if the last value is a number token followed by >>, a solution is probably to ignore << and >>
-    if (isANameToken && isANumberToken && token?.charAt(0) === "/") {
-      // need to use the last read token from tokenizer for the key of the next dictionary entry
-      break;
+    // If it is a name, we can yield the value
+    if (isNamePDFObj) {
+      yield value;
     }
 
-    // Entry value of dictionary od Array type
-    if (isAnArrayToken) {
-      if (!value.length && token.charAt(0) === "[" && token.charAt(1) === "<") {
-        value.unshift(token.split("[<")[1]);
-      } else if (
-        value.length &&
-        token.charAt(token.length - 1) === "]" &&
-        token.charAt(token.length - 2) === ">"
-      ) {
-        value.unshift(token.split("]>")[0]);
-        break;
+    // If it is a number, we need to verify if is just a number or a Ref
+    // If the following token it is not a number, the current token is just a number
+    // If the following token it is another number, we can yield together the num and gen
+    // number with the R keyord together
+    if (isANumber) {
+      const { value: nextTokenValue, done: nextTokenDone } = generator.next();
+
+      if (nextTokenDone) {
+        return;
       }
+
+      if (isNaN(nextTokenValue)) {
+        tokenizer.lastReadIndex =
+          tokenizer.lastReadIndex - nextTokenValue.length - 2;
+
+        yield value;
+        continue;
+      }
+
+      const { value: refKeyword, done: refKeyWordDone } = generator.next();
+
+      if (refKeyWordDone || refKeyword !== 'R') {
+        return;
+      }
+
+      yield new Ref(+value, +nextTokenValue);
     }
 
-    if (isRefToken && (token === "R" || !isNaN(+token))) {
-      value.push(token);
+    // If it is an array, we need to find all the tokens until the symbol ],
+    // and finally yield the values together
+    if (startsPDFArrayObj) {
+      const pdfArrayObj = [value.split("[")[1]];
 
-      if (token === "R") {
-        break;
+      while (true) {
+        const { value: nextToken, done: nextTokenDone } = generator.next();
+
+        if (nextTokenDone) {
+          // INVALID PDF FILE, ARRAY WITHOUT CLOSING TAG
+          return;
+        }
+
+        const endsPDFArrayObj = nextToken.charAt(value.length - 1) === "]";
+
+        if (endsPDFArrayObj) {
+          pdfArrayObj.push(nextToken.split("]")[0]);
+          yield pdfArrayObj;
+        }
+
+        pdfArrayObj.push(nextToken);
       }
     }
   }
-  return value;
-};
+}
