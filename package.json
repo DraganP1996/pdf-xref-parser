@@ -1,6 +1,6 @@
 {
   "name": "pdf-xref-parser",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "repository": "https://github.com/DraganP1996/pdf-xref-parser.git",
   "description": "Basic PDF Xref parser",
   "author": "Dragan Petrovic <pdragan1996@gmail.com>",
@@ -9,7 +9,8 @@
   "scripts": {
     "build": "rm -rf dist && tsc --build && npm run copy",
     "copy": "cp package.json dist/lib && cp .npmignore dist/lib && cp README.md dist/lib",
-    "pack:lib": "npm run build && cd dist/lib && npm pack"
+    "pack:lib": "npm run build && cd dist/lib && npm pack",
+    "publish:lib": "npm run build && cd dist/lib && npm publish"
   },
   "keywords": [],
   "license": "MIT",
